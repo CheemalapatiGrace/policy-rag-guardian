@@ -1,6 +1,6 @@
 # policy-rag-guardian
 
-**Enterprise policy and compliance Q&A that answers only from what the asker is allowed to read, cites every claim, refuses when it cannot prove it, and hands risky answers to a human before they are released.** It is a RAG system built around three production concerns that most demos skip: *reliability and scalability* (hybrid retrieval, idempotent ingestion, retries, circuit breakers, graceful degradation), *security* (input, retrieval and output guardrails, document-level ACLs, and a CI-gating eval suite with adversarial cases), and *observability with human-in-the-loop review* (step-level traces, a live dashboard, a review queue whose decisions feed back into a regression eval set, and a hash-chained audit log). Python 3.12, FastAPI, NumPy, SQLite. **Everything, including all 115 tests and the eval gate, runs fully offline with zero API keys** (deterministic hashing embeddings + BM25 + an extractive mock LLM); Anthropic (`claude-sonnet-5-5`) and Ollama are optional providers behind environment variables.
+**Enterprise policy and compliance Q&A that answers only from what the asker is allowed to read, cites every claim, refuses when it cannot prove it, and hands risky answers to a human before they are released.** It is a RAG system built around three production concerns that most demos skip: *reliability and scalability* (hybrid retrieval, idempotent ingestion, retries, circuit breakers, graceful degradation), *security* (input, retrieval and output guardrails, document-level ACLs, and a CI-gating eval suite with adversarial cases), and *observability with human-in-the-loop review* (step-level traces, a live dashboard, a review queue whose decisions feed back into a regression eval set, and a hash-chained audit log). Python 3.12, FastAPI, NumPy, SQLite. **Everything, including all 116 tests and the eval gate, runs fully offline with zero API keys** (deterministic hashing embeddings + BM25 + an extractive mock LLM); Anthropic (`claude-sonnet-5-5`) and Ollama are optional providers behind environment variables.
 
 ```
 $ python -m rag_guardian.evals          # 79 golden cases, CI gate
@@ -89,9 +89,11 @@ flowchart LR
 
 ```bash
 make install                 # python3.12 venv at .venv + editable install + dev tools
-make test                    # 115 tests, offline
+make test                    # 116 tests, offline
 make eval                    # golden-set eval, non-zero exit below thresholds
-make run                     # http://127.0.0.1:8000  (dashboard at /, OpenAPI at /docs)
+make run                     # http://127.0.0.1:8000  (console at /, OpenAPI at /docs)
+                             # sign in with a demo key (key-reviewer, key-admin, key-hr, key-employee); the Ask page
+                             # compares roles side by side, e.g. salary bands: Employee refused, HR answered
 make bench                   # latency / throughput report
 ```
 
@@ -208,7 +210,7 @@ src/rag_guardian/evals/                   runner, probes, CLI (python -m rag_gua
 data/corpus/                              11 synthetic policy docs with ACL front matter
 data/evals/golden.jsonl                   79 golden cases;  regression.jsonl = reviewer-fed cases
 scripts/bench.py                          latency / throughput benchmark
-tests/                                    115 pytest tests;  .github/workflows/ci.yml = lint + tests + eval gate
+tests/                                    116 pytest tests;  .github/workflows/ci.yml = lint + tests + eval gate
 ```
 
 ## Resume-ready bullets
