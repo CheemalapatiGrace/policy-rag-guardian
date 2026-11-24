@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policy RAG Guardian</title>
+<style>
+:root{--bg:#0f1218;--panel:#171c26;--panel2:#1d2431;--line:#2a3345;--tx:#e6eaf2;--mut:#8b96ab;--acc:#5b9dff;
+--ok:#3ecf8e;--warn:#f5b84b;--bad:#ff6b6b;--hold:#b48bff;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+@media (prefers-color-scheme:light){:root{--bg:#f4f6fa;--panel:#fff;--panel2:#f0f3f9;--line:#d9dfeb;--tx:#1b2333;--mut:#667089}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-size:14px}
+header{display:flex;gap:16px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}header h1 span{color:var(--acc)}
+nav{display:flex;gap:4px}nav button{background:none;border:0;color:var(--mut);padding:8px 12px;border-radius:8px;cursor:pointer;font:inherit}
+nav button.on{background:var(--panel2);color:var(--tx)}nav .badge{background:var(--hold);color:#fff;border-radius:10px;padding:0 7px;margin-left:6px;font-size:11px}
+.sp{flex:1}label{color:var(--mut);font-size:12px}input,select,textarea{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit}
+textarea{width:100%;min-height:70px}button.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit;font-weight:600}
+button.btn.ok{background:var(--ok);color:#06251a}button.btn.bad{background:var(--bad);color:#2b0a0a}button.btn.ghost{background:var(--panel2);color:var(--tx);border:1px solid var(--line)}
+main{padding:16px 20px;max-width:1500px;margin:0 auto}.grid{display:grid;grid-template-columns:minmax(380px,1fr) 1.2fr;gap:16px}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.card h2{margin:0 0 10px;font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:110px}
+.stat b{display:block;font-size:20px}.stat span{color:var(--mut);font-size:12px}
+table{width:100%;border-collapse:collapse}th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;padding:6px 8px}td{padding:8px;border-top:1px solid var(--line);vertical-align:top}
+tr.row{cursor:pointer}tr.row:hover,tr.row.sel{background:var(--panel2)}.q{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;border:1px solid transparent}
+.s-answered,.s-review_approved,.s-review_edited{background:#1d3b2f;color:var(--ok)}.s-refused{background:#3a3220;color:var(--warn)}
+.s-blocked,.s-review_rejected{background:#40242a;color:var(--bad)}.s-pending_review{background:#2f2650;color:var(--hold)}
+.reason{background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
+.span{margin:8px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}.span summary{cursor:pointer;padding:8px 10px;display:flex;gap:10px;align-items:center;background:var(--panel2)}
+.bar{flex:1;height:8px;background:var(--line);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}.bar i.blocked{background:var(--bad)}.bar i.degraded{background:var(--warn)}
+pre{margin:0;padding:10px;overflow:auto;max-height:260px;font-size:12px;background:var(--bg);white-space:pre-wrap;word-break:break-word}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:4px 10px;margin-bottom:10px}.kv div:nth-child(odd){color:var(--mut)}
+.review{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--panel)}
+.review .draft{background:var(--panel2);border-left:3px solid var(--hold);padding:10px;border-radius:6px;margin:10px 0;white-space:pre-wrap}
+.row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.mut{color:var(--mut)}.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;animation:p 1.6s infinite}
+@keyframes p{50%{opacity:.25}}.err{color:var(--bad);margin:8px 0}.empty{color:var(--mut);padding:24px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>Policy <span>RAG Guardian</span></h1>
+  <nav id="nav"></nav>
+  <div class="sp"></div>
+  <label>Reviewer API key <input id="key" size="14" value="key-reviewer" autocomplete="off"></label>
+  <label><input type="checkbox" id="liveToggle" checked> <span class="live"></span>live</label>
+</header>
+<main>
+  <div id="err" class="err"></div>
+  <section id="v-traces"></section>
+  <section id="v-reviews" hidden></section>
+  <section id="v-ask" hidden></section>
+  <section id="v-audit" hidden></section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+function h(tag, attrs, ...kids) {            // XSS-safe element builder: only ever uses textContent
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") el.className = v; else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+const chip = (s) => h("span", {class: "chip s-" + s}, s.replace("_", " "));
+const fmtT = (iso) => (iso || "").slice(11, 19);
+let tab = "traces", selected = null, timer = null;
+
+async function api(path, opts = {}, key) {
+  const r = await fetch(path, {...opts, headers: {"X-API-Key": key || $("key").value, "Content-Type": "application/json", ...(opts.headers || {})}});
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((body.detail || r.statusText) + " (" + r.status + ")");
+  return body;
+}
+const setErr = (e) => { $("err").textContent = e ? String(e.message || e) : ""; };
+
+const TABS = [["traces", "Live traces"], ["reviews", "Review queue"], ["ask", "Ask"], ["audit", "Audit log"]];
+function renderNav(pending) {
+  const nav = $("nav"); nav.replaceChildren();
+  for (const [id, label] of TABS) {
+    const b = h("button", {class: id === tab ? "on" : "", onclick: () => { tab = id; show(); }}, label);
+    if (id === "reviews" && pending) b.append(h("span", {class: "badge"}, pending));
+    nav.append(b);
+  }
+}
+function show() {
+  for (const [id] of TABS) $("v-" + id).hidden = id !== tab;
+  refresh();
+}
+
+/* ---------- traces ---------- */
+async function loadTraces() {
+  const data = await api("/v1/traces?limit=60");
+  const st = data.stats, root = $("v-traces"); root.replaceChildren();
+  const by = st.by_status;
+  root.append(h("div", {class: "stats"},
+    h("div", {class: "stat"}, h("b", {}, st.total), h("span", {}, "traces")),
+    ...["answered", "refused", "blocked", "pending_review"].map(k => h("div", {class: "stat"}, h("b", {}, (by[k] || {}).count || 0), h("span", {}, k.replace("_", " ")))),
+    h("div", {class: "stat"}, h("b", {}, "$" + st.cost_usd.toFixed(4)), h("span", {}, "est. cost")),
+    h("div", {class: "stat"}, h("b", {}, st.tokens_in + st.tokens_out), h("span", {}, "tokens"))));
+  const rows = data.traces.map(t => h("tr", {class: "row" + (t.trace_id === selected ? " sel" : ""), onclick: () => { selected = t.trace_id; refresh(); }},
+    h("td", {}, fmtT(t.created_at)), h("td", {}, chip(t.status)), h("td", {class: "q", title: t.question}, t.question), h("td", {}, t.roles),
+    h("td", {}, t.latency_ms.toFixed(1) + " ms")));
+  const left = h("div", {class: "card"}, h("h2", {}, "Recent requests"),
+    rows.length ? h("table", {}, h("thead", {}, h("tr", {}, ["time", "status", "question (redacted)", "role", "latency"].map(x => h("th", {}, x)))), h("tbody", {}, rows)) : h("div", {class: "empty"}, "No traces yet. Ask something in the Ask tab."));
+  const right = h("div", {class: "card", id: "detail"}, h("h2", {}, "Trace detail"), h("div", {class: "empty"}, "Select a trace"));
+  root.append(h("div", {class: "grid"}, left, right));
+  if (selected) loadDetail(selected, right);
+}
+async function loadDetail(id, box) {
+  const t = await api("/v1/traces/" + id);
+  const total = Math.max(...t.spans.map(s => s.duration_ms), 0.001);
+  box.replaceChildren(h("h2", {}, "Trace " + t.trace_id.slice(0, 12)),
+    h("div", {class: "kv"}, h("div", {}, "status"), h("div", {}, chip(t.status), " ", ...(t.reason ? t.reason.split(",").map(r => h("span", {class: "chip reason"}, r)) : [])),
+      h("div", {}, "user / role"), h("div", {}, t.user_id + " / " + t.roles), h("div", {}, "latency"), h("div", {}, t.latency_ms.toFixed(2) + " ms"),
+      h("div", {}, "tokens / cost"), h("div", {}, t.tokens_in + " in / " + t.tokens_out + " out / $" + t.cost_usd.toFixed(5)),
+      h("div", {}, "confidence"), h("div", {}, t.confidence), h("div", {}, "degraded"), h("div", {}, t.degraded.join(", ") || "no"),
+      h("div", {}, "question"), h("div", {}, t.question), h("div", {}, "released"), h("div", {}, t.final_answer || "(nothing released)")),
+    ...t.spans.map(s => h("details", {class: "span"},
+      h("summary", {}, h("b", {}, s.name), h("span", {class: "bar"}, h("i", {class: s.status, style: "width:" + Math.max(2, 100 * s.duration_ms / total) + "%"})), h("span", {class: "mut"}, s.duration_ms.toFixed(2) + " ms"), s.status !== "ok" ? h("span", {class: "chip reason"}, s.status) : null),
+      h("pre", {}, JSON.stringify({input: s.input, output: s.output, attrs: s.attrs}, null, 2)))));
+}
+
+/* ---------- review queue ---------- */
+async function loadReviews() {
+  const [pend, done] = await Promise.all([api("/v1/reviews?status=pending"), api("/v1/reviews?status=all")]);
+  const root = $("v-reviews"); root.replaceChildren();
+  root.append(h("div", {class: "card"}, h("h2", {}, "Pending human review (" + pend.reviews.length + ")"),
+    pend.reviews.length ? pend.reviews.map(reviewCard) : h("div", {class: "empty"}, "Queue is empty. Ask a sensitive question (e.g. about harassment reporting) as an employee.")));
+  const decided = done.reviews.filter(r => r.status !== "pending").slice(0, 15);
+  root.append(h("div", {class: "card", style: "margin-top:16px"}, h("h2", {}, "Recent decisions"),
+    decided.length ? h("table", {}, h("thead", {}, h("tr", {}, ["id", "decision", "reviewer", "question"].map(x => h("th", {}, x)))), h("tbody", {}, decided.map(r => h("tr", {}, h("td", {}, "#" + r.review_id), h("td", {}, r.status), h("td", {}, r.reviewer), h("td", {class: "q"}, r.question))))) : h("div", {class: "empty"}, "No decisions yet.")));
+}
+function reviewCard(r) {
+  const edit = h("textarea", {placeholder: "Edit the answer before release (required for 'Edit & release')"}); edit.value = r.draft_answer;
+  const note = h("input", {placeholder: "Reviewer note (optional)", size: 34});
+  const decide = async (action) => {
+    try { setErr(""); await api("/v1/reviews/" + r.review_id + "/decision", {method: "POST", body: JSON.stringify({action, edited_answer: action === "edit" ? edit.value : null, note: note.value})}); refresh(true); }
+    catch (e) { setErr(e); }
+  };
+  return h("div", {class: "review"},
+    h("div", {class: "row2"}, h("b", {}, "#" + r.review_id), ...r.reasons.map(x => h("span", {class: "chip reason"}, x)), h("span", {class: "mut"}, "asker role: " + r.asker_roles + " / trace " + r.trace_id.slice(0, 8))),
+    h("div", {style: "margin-top:8px"}, h("span", {class: "mut"}, "Question: "), r.question),
+    h("div", {class: "draft"}, r.draft_answer),
+    h("div", {class: "mut"}, "Sources: " + (r.citations.map(c => c.title + " > " + c.section).join("; ") || "none")),
+    edit, h("div", {class: "row2"}, note,
+      h("button", {class: "btn ok", onclick: () => decide("approve")}, "Approve"),
+      h("button", {class: "btn ghost", onclick: () => decide("edit")}, "Edit & release"),
+      h("button", {class: "btn bad", onclick: () => decide("reject")}, "Reject")));
+}
+
+/* ---------- ask ---------- */
+function renderAsk() {
+  const root = $("v-ask"); if (root.dataset.ready) return; root.dataset.ready = "1";
+  const who = h("select", {}, ...["key-employee", "key-guest", "key-manager", "key-hr", "key-security"].map(k => h("option", {value: k}, k.replace("key-", ""))));
+  const q = h("textarea", {placeholder: "e.g. How many days of annual leave do I get?"}); q.value = "How many days of annual leave do I get?";
+  const out = h("div", {});
+  const send = async () => {
+    try { setErr(""); out.replaceChildren(h("div", {class: "mut"}, "thinking...")); const r = await api("/v1/query", {method: "POST", body: JSON.stringify({question: q.value})}, who.value);
+      out.replaceChildren(h("div", {class: "row2"}, chip(r.status), ...r.reasons.map(x => h("span", {class: "chip reason"}, x)), h("span", {class: "mut"}, "confidence " + r.confidence + " / " + r.latency_ms + " ms")),
+        h("div", {class: "review"}, h("div", {class: "draft"}, r.answer || r.message), h("div", {class: "mut"}, r.citations.map(c => "[" + c.marker + "] " + c.title + " > " + c.section).join("  |  ")), h("div", {class: "mut"}, "trace " + r.trace_id)));
+    } catch (e) { out.replaceChildren(); setErr(e); }
+  };
+  root.append(h("div", {class: "card"}, h("h2", {}, "Ask as a user"), h("div", {class: "row2"}, h("label", {}, "ask as "), who), q,
+    h("div", {class: "row2"}, h("button", {class: "btn", onclick: send}, "Ask")), out));
+}
+
+/* ---------- audit ---------- */
+async function loadAudit() {
+  const [a, v] = await Promise.all([api("/v1/audit?limit=60"), api("/v1/audit/verify")]);
+  const root = $("v-audit"); root.replaceChildren(h("div", {class: "card"}, h("h2", {}, "Append-only audit log (hash chained)"),
+    h("div", {class: "row2"}, h("span", {class: "chip " + (v.valid ? "s-answered" : "s-blocked")}, v.valid ? "chain valid" : "CHAIN BROKEN at #" + v.broken_at), h("span", {class: "mut"}, v.total + " events")),
+    h("table", {}, h("thead", {}, h("tr", {}, ["#", "time", "actor", "action", "target", "details"].map(x => h("th", {}, x)))),
+      h("tbody", {}, a.events.map(e => h("tr", {}, h("td", {}, e.id), h("td", {}, fmtT(e.ts)), h("td", {}, e.actor), h("td", {}, e.action), h("td", {class: "q"}, e.target), h("td", {class: "q", title: JSON.stringify(e.details)}, JSON.stringify(e.details))))))));
+}
+
+async function refresh(force) {
+  try {
+    setErr("");
+    const pend = (await api("/v1/reviews?status=pending")).reviews.length; renderNav(pend);
+    if (tab === "traces") await loadTraces();
+    else if (tab === "reviews") { const a = document.activeElement; const typing = a && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && a.id !== "key" && a.type !== "checkbox"));
+      if (force || !typing) await loadReviews(); }
+    else if (tab === "ask") renderAsk();
+    else if (tab === "audit") await loadAudit();
+  } catch (e) { setErr(e); }
+}
+$("key").addEventListener("change", () => refresh(true));
+setInterval(() => { if ($("liveToggle").checked && tab !== "ask") refresh(); }, 2500);
+show();
+</script>
+</body>
+</html>

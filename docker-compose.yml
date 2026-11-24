@@ -1,0 +1,32 @@
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      RAG_LLM: ${RAG_LLM:-mock}                 # mock | anthropic | ollama
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}  # never baked into the image; pass at runtime
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      RAG_DEMO_KEYS: ${RAG_DEMO_KEYS:-1}         # set to 0 and provide RAG_API_KEYS in real deployments
+      RAG_API_KEYS: ${RAG_API_KEYS:-}
+    volumes:
+      - rag-data:/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+
+  # Optional local LLM:  docker compose --profile ollama up   (then RAG_LLM=ollama)
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    volumes: [ollama:/root/.ollama]
+    ports: ["11434:11434"]
+
+volumes:
+  rag-data:
+  ollama:
