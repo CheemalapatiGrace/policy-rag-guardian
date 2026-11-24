@@ -110,5 +110,13 @@ def test_decision_validation_errors(client):
 
 def test_dashboard_is_served_without_build_step(client):
     r = client.get("/")
-    assert r.status_code == 200 and "Review queue" in r.text and "text/html" in r.headers["content-type"]
+    assert r.status_code == 200 and "Review queue" in r.text and "Policy Guardian" in r.text and "text/html" in r.headers["content-type"]
     assert client.get("/dashboard").status_code == 200
+
+
+def test_me_reports_identity_and_staff_flag(client):
+    assert client.get("/v1/me").status_code == 401
+    hr = client.get("/v1/me", headers=H("key-hr")).json()
+    assert hr["user_id"] == "hannah.hr" and hr["roles"] == ["hr"] and not hr["is_staff"]
+    assert "employee" in hr["effective_roles"]
+    assert client.get("/v1/me", headers=H("key-reviewer")).json()["is_staff"] is True

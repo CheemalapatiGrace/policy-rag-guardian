@@ -78,6 +78,16 @@ def create_app(settings: Settings | None = None, pipeline: RAGPipeline | None = 
         body = {"status": "ready" if ready else "not_ready", "degraded": degraded, **info}
         return JSONResponse(body, status_code=200 if ready else 503)
 
+    @app.get("/v1/me")
+    async def me(p: Annotated[Principal, Depends(principal)]) -> dict[str, Any]:
+        """Who am I? Lets the console validate a key and gate navigation by role."""
+        return {
+            "user_id": p.user_id,
+            "roles": sorted(p.roles),
+            "effective_roles": sorted(p.effective),
+            "is_staff": p.has_any("reviewer", "admin"),
+        }
+
     # ---- query --------------------------------------------------------------------------------
     @app.post("/v1/query")
     async def query(req: QueryRequest, request: Request, p: Annotated[Principal, Depends(principal)]) -> dict[str, Any]:
